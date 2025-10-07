@@ -5,7 +5,8 @@ function respond(requestId, body) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== 'replace-range') return true;
+  // Ignore non-replacement messages
+  if (msg?.type !== 'replace-range') return false;
   
   const { start, end, newText, expectedOriginal } = msg.payload || {};
   const requestId = msg.requestId;
@@ -16,7 +17,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       success: false, 
       error: 'no-active-editable' 
     }));
-    return true;
+    return false; // Synchronous response
   }
 
   try {
@@ -39,7 +40,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
               error: 'range-mismatch',
               details: `Expected "${expectedOriginal}" but found "${actualText}"`
             }));
-            return true;
+            return false; // Synchronous response
           }
           s = idx;
           e = idx + expectedOriginal.length;
@@ -66,7 +67,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         replacedLength: e - s,
         newLength: newText.length
       }));
-      return true;
+      return false; // Synchronous response
     }
 
     // Handle contenteditable elements
@@ -76,7 +77,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         success: false, 
         error: 'no-contenteditable' 
       }));
-      return true;
+      return false; // Synchronous response
     }
 
     // Build linear text map for contenteditable
@@ -106,7 +107,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             error: 'range-mismatch',
             details: `Expected "${expectedOriginal}" at ${s0}-${e0}`
           }));
-          return true;
+          return false; // Synchronous response
         }
         s0 = idx;
         e0 = idx + expectedOriginal.length;
@@ -121,7 +122,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         success: false, 
         error: 'dom-map-failed' 
       }));
-      return true;
+      return false; // Synchronous response
     }
 
     // Create range and replace
@@ -155,7 +156,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       replacedLength: e0 - s0,
       newLength: newText.length
     }));
-    return true;
+    return false; // Synchronous response
     
   } catch (e) {
     sendResponse(respond(requestId, { 
@@ -163,6 +164,6 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       error: e.message || 'exception',
       stack: e.stack
     }));
-    return true;
+    return false; // Synchronous response
   }
 });
