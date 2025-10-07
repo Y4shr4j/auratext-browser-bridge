@@ -6,11 +6,14 @@
   
   "permissions": [
     "activeTab",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
   
   "host_permissions": [
-    "<all_urls>"
+    "<all_urls>",
+    "https://chatgpt.com/*",
+    "https://*.openai.com/*"
   ],
   
   "background": {

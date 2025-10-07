@@ -5,7 +5,10 @@ function respond(requestId, body) {
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  // Ignore non-replacement messages
+  if (msg?.type === 'ping') {
+    sendResponse({ pong: true });
+    return false;
+  }
   if (msg?.type !== 'replace-range') return false;
   
   const { start, end, newText, expectedOriginal } = msg.payload || {};
@@ -47,9 +50,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         }
       }
       
-      // Perform atomic replacement
-      active.setSelectionRange(s, e);
-      active.setRangeText(newText, s, e, 'end');
+      // Perform atomic replacement at exact position
+      active.setRangeText(newText, s, e, 'select');
+      active.setSelectionRange(s + newText.length, s + newText.length);
       
       // Trigger input event for framework compatibility (React, Vue, etc.)
       active.dispatchEvent(new InputEvent('input', { 
@@ -130,18 +133,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     r.setStart(A.n, s0 - A.start);
     r.setEnd(B.n, e0 - B.start);
 
+    // Delete old content and insert new text at exact position
+    r.deleteContents();
+    const textNode = document.createTextNode(newText);
+    r.insertNode(textNode);
+    
+    // Set cursor to end of inserted text
+    r.setStartAfter(textNode);
+    r.collapse(true);
+    
     const sel = getSelection();
     sel.removeAllRanges();
     sel.addRange(r);
-    
-    // Try execCommand first (better for preserving formatting)
-    const ok = document.execCommand('insertText', false, newText);
-    
-    if (!ok) {
-      // Fallback: manual DOM manipulation
-      r.deleteContents();
-      r.insertNode(document.createTextNode(newText));
-    }
 
     // Trigger input event for framework compatibility
     root.dispatchEvent(new InputEvent('input', { 
@@ -152,7 +155,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     
     sendResponse(respond(requestId, { 
       success: true, 
-      method: ok ? 'execCommand' : 'range-insert',
+      method: 'range-insert',
       replacedLength: e0 - s0,
       newLength: newText.length
     }));

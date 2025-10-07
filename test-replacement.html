@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Replacement</title>
+</head>
+<body>
+  <h2>Test Text Replacement</h2>
+  
+  <textarea id="test" rows="10" cols="50">Line 1
+
+
+Line 2 with text to replace
+
+
+Line 3</textarea>
+
+  <script>
+    // Test exact replacement
+    const textarea = document.getElementById('test');
+    const original = textarea.value;
+    
+    console.log('Original text:', JSON.stringify(original));
+    console.log('Original length:', original.length);
+    
+    // Find "text to replace"
+    const searchText = "text to replace";
+    const start = original.indexOf(searchText);
+    const end = start + searchText.length;
+    
+    console.log('Found at:', start, '-', end);
+    console.log('Text at range:', JSON.stringify(original.slice(start, end)));
+    
+    // Replace using setRangeText
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setRangeText("NEW TEXT HERE", start, end, 'end');
+      
+      console.log('After replacement:', JSON.stringify(textarea.value));
+      console.log('New length:', textarea.value.length);
+      
+      // Verify spacing preserved
+      const lines = textarea.value.split('\n');
+      console.log('Line count:', lines.length);
+    }, 1000);
+  </script>
+</body>
+</html>

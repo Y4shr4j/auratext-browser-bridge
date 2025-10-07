@@ -1,6 +1,25 @@
 let ws = null;
 let backoff = 500;
 
+async function ensureContentInjected(tabId) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'ping' });
+    return true;
+  } catch {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js']
+      });
+      await new Promise(r => setTimeout(r, 50));
+      return true;
+    } catch (e) {
+      console.warn('[AuraText] Injection failed:', e?.message);
+      return false;
+    }
+  }
+}
+
 function connect() {
   if (ws?.readyState === WebSocket.OPEN) return;
   
@@ -23,14 +42,18 @@ function connect() {
         return;
       }
 
-      // FIXED: Properly handle the async response with error handling
       try {
+        const ok = await ensureContentInjected(tab.id);
+        if (!ok) {
+          ws.send(JSON.stringify({ requestId: msg.requestId, success: false, error: 'inject-failed' }));
+          return;
+        }
+
         const resp = await chrome.tabs.sendMessage(tab.id, msg);
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify(resp || { requestId: msg.requestId, success: false, error: 'no-response' }));
         }
       } catch (error) {
-        // Handle errors (tab closed, content script not ready, etc.)
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ 
             requestId: msg.requestId, 
