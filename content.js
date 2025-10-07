@@ -4,6 +4,37 @@ function respond(requestId, body) {
   return { requestId, ...body };
 }
 
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash >>> 0;
+}
+
+function getActiveEditableText() {
+  const active = document.activeElement;
+  if (!active) return { element: null, text: '' };
+  if (active instanceof HTMLTextAreaElement || (active instanceof HTMLInputElement && !active.readOnly)) {
+    return { element: active, text: active.value || '' };
+  }
+  const root = active.closest('[contenteditable="true"]');
+  if (root) {
+    return { element: root, text: root.textContent || '' };
+  }
+  return { element: null, text: '' };
+}
+
+function getDocumentFingerprint() {
+  const { text } = getActiveEditableText();
+  return {
+    length: text.length,
+    hash: simpleHash(text),
+    ts: Date.now()
+  };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'ping') {
     sendResponse({ pong: true });
@@ -11,7 +42,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type !== 'replace-range') return false;
   
-  const { start, end, newText, expectedOriginal } = msg.payload || {};
+  const { start, end, newText, expectedOriginal, documentHash } = msg.payload || {};
   const requestId = msg.requestId;
 
   const active = document.activeElement;
@@ -21,6 +52,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       error: 'no-active-editable' 
     }));
     return false; // Synchronous response
+  }
+
+  // Verify document fingerprint if provided
+  const fp = getDocumentFingerprint();
+  if (documentHash != null && fp.hash !== documentHash) {
+    sendResponse(respond(requestId, {
+      success: false,
+      error: 'document-modified'
+    }));
+    return false;
   }
 
   try {
@@ -33,9 +74,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       
       // Validate the range matches expected original text
       if (expectedOriginal) {
+        const normalize = (t) => t.replace(/\s+/g, ' ').trim();
         const actualText = currentValue.slice(s, e);
-        if (actualText !== expectedOriginal) {
-          // Try to find the text in the document
+        if (normalize(actualText) !== normalize(expectedOriginal)) {
+          // Try to find the text in the document (tolerant)
           const idx = currentValue.indexOf(expectedOriginal);
           if (idx < 0) {
             sendResponse(respond(requestId, { 
@@ -101,8 +143,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     
     // Validate range for contenteditable
     if (expectedOriginal) {
+      const normalize = (t) => t.replace(/\s+/g, ' ').trim();
       const actualText = text.slice(s0, e0);
-      if (actualText !== expectedOriginal) {
+      if (normalize(actualText) !== normalize(expectedOriginal)) {
         const idx = text.indexOf(expectedOriginal);
         if (idx < 0) {
           sendResponse(respond(requestId, { 
